@@ -14,6 +14,8 @@ const ACE_MAX_VAL = 11;
 const ACE_MIN_VAL = 1;
 const FACE_CARD_VAL = 10;
 
+// Helper functions
+
 function prompt(question = '', input = false) {
   if (input) return readline.question(question);
   readline.question(question);
@@ -31,6 +33,12 @@ function updateDeck(index) {
   }
 }
 
+function otherPlayer(player) {
+  return (player === 'Player') ? 'Dealer' : 'Player';
+}
+
+//  Back-end game logic
+
 function dealCard() {
   let randomCardIndex = Math.floor(Math.random() * (gameObj.cardsInDeck - 1));
   let ind;
@@ -40,33 +48,6 @@ function dealCard() {
   ind -= 1;
   updateDeck(ind);
   return DECK[ind];
-}
-
-function otherPlayer(player) {
-  return (player === 'Player') ? 'Dealer' : 'Player';
-}
-
-function showHandStringGen(player, fullDealerReveal = false) {
-  function stringGrammar(arr) {
-    if (arr.length < 3) return arr.join(" and ");
-    return arr.slice(0, -1).join(", ") + ` and ${arr[arr.length - 1]}`;
-  }
-  if (player === 'Dealer' && !fullDealerReveal) {
-    let arr = gameObj.Dealer.hand.slice();
-    // console.log(arr);
-    if (arr.length >= 2) return stringGrammar([].concat(arr[0],
-      arr.slice(2, arr.length),
-      'unknown card'));
-  }
-  return stringGrammar(gameObj[player].hand);
-}
-
-
-function showHands(fullDealerReveal = false, includeHeader = '') {
-  console.clear();
-  if (includeHeader) console.log(includeHeader);
-  console.log(`Dealer has: ${showHandStringGen('Dealer', fullDealerReveal)}`);
-  console.log(`You have: ${showHandStringGen('Player', fullDealerReveal)}`);
 }
 
 function initializeHands() {
@@ -83,6 +64,17 @@ function initializeHands() {
   updateScoresAndDetectBust('Dealer');
 }
 
+function dealerChoice() {
+  let diff = gameObj.Player.score - gameObj.Dealer.score;
+  if (diff < 0) return 'stay';
+  if (diff === 0 && (MAX_SCORE - gameObj.Dealer.score < 7)) return 'stay';
+  return 'hit';
+}
+
+function playerChoice() {
+  return prompt("Do you wish to stay or hit (enter 'stay' or 'hit') ? ", true);
+}
+
 function hitHand(player) {
   gameObj[player].hand.push(dealCard());
 }
@@ -95,7 +87,7 @@ function scoreHand(cardArr) {
       aceCount += 1;
       continue;
     }
-    score += Math.min(1 + DECK.indexOf(cardArr[ind]), FACE_CARD_VAL);
+    score += Math.min(2 + DECK.indexOf(cardArr[ind]), FACE_CARD_VAL); // Lowest value in deck is 2, which has an index of 0
   }
   if (!aceCount) return score;
   let maxAceVal = ACE_MAX_VAL + ((aceCount - 1) * ACE_MIN_VAL);
@@ -111,56 +103,44 @@ function updateScoresAndDetectBust(player) {
   return false;
 }
 
-function bustHandler(bustedPlayer) {
-  prompt(`${bustedPlayer} has gone bust!`);
-}
-
-function dealerChoice() {
-  let diff = gameObj.Player.score - gameObj.Dealer.score;
-  if (diff < 0) return 'stay';
-  return 'hit';
-}
-
-function playerChoice() {
-  return prompt("Do you wish to stay or hit?", true);
-}
-
-function commentary(choice, player) {
-  let choiceObj = {
-    stay: {
-      Player : `You have chosen to stay. Your turn ends.`,
-      Dealer : `Dealer chooses to stay. End of play. Calculating scores to assess winner...`
-    },
-    hit: {
-      Player : `You have chosen to hit. Updated decks shown above`,
-      Dealer : `Dealer chose to hit. Updated decks shown above`
-    }
-  };
-  return choiceObj[choice][player];
-}
-
-function playOrganizerAndBustDetector(player) {
-  let choiceMaker = {Player : playerChoice, Dealer : dealerChoice}[player];
-  let playerBustedStatus = false;
-  while (!playerBustedStatus) {
-    showHands();
-    let choice = choiceMaker();
-    if (choice === 'stay') {
-      commentary('stay', player);
-      return playerBustedStatus;
-    }
-    hitHand(player);
-    showHands();
-    prompt(commentary('hit', player));
-    playerBustedStatus = updateScoresAndDetectBust(player);
-  }
-  return playerBustedStatus;
-}
-
 function assessWinner() {
   if (gameObj.Player.score > gameObj.Dealer.score) return 'Player';
   if (gameObj.Player.score === gameObj.Dealer.score) return 'Tie';
   return 'Dealer';
+}
+
+function resetDeckAfterMatch() {
+  gameObj.deck = INITIAL_DECK;
+  gameObj.cardsInDeck = 52;
+}
+
+// Functions that log game specifics to console
+
+function showHandStringGen(player, fullDealerReveal = false) {
+  function stringGrammar(arr) {
+    if (arr.length < 3) return arr.join(" and ");
+    return arr.slice(0, -1).join(", ") + ` and ${arr[arr.length - 1]}`;
+  }
+  if (player === 'Dealer' && !fullDealerReveal) {
+    let arr = gameObj.Dealer.hand.slice();
+    // console.log(arr);
+    if (arr.length >= 2) return stringGrammar([].concat(arr[0],
+      arr.slice(2, arr.length),
+      'unknown card'));
+  }
+  return stringGrammar(gameObj[player].hand);
+}
+
+function bustHandler(bustedPlayer) {
+  prompt(`${bustedPlayer} has gone bust!`);
+}
+
+
+function showHands(fullDealerReveal = false, includeHeader = '') {
+  console.clear();
+  if (includeHeader) console.log(includeHeader);
+  console.log(`Dealer has: ${showHandStringGen('Dealer', fullDealerReveal)}`);
+  console.log(`You have: ${showHandStringGen('Player', fullDealerReveal)}`);
 }
 
 function declareWinnerUpdateMatchScores(winner, gamesToWin) {
@@ -181,6 +161,49 @@ function declareWinnerUpdateMatchScores(winner, gamesToWin) {
   return false;
 }
 
+function commentary(choice, player) {
+  let choiceObj = {
+    stay: {
+      Player : `You have chosen to stay. Your turn ends.`,
+      Dealer : `Dealer chooses to stay. End of play. Calculating scores to assess winner...`
+    },
+    hit: {
+      Player : `You have chosen to hit. Updated decks shown above`,
+      Dealer : `Dealer chose to hit. Updated decks shown above`
+    }
+  };
+  return choiceObj[choice][player];
+}
+
+function displayScores(matchStyle) {
+  let templateString = (player, isMatch) => {
+    if (!isMatch) return `${player} :\n Games won : ${gameObj[player].gameScore}`;
+    return `${player} :\n Game score : ${gameObj[player].gameScore}\n Match score : ${gameObj[player].matchScore}`;
+  };
+  console.log(templateString('Player', matchStyle));
+  console.log(templateString('Dealer', matchStyle));
+}
+
+// Front-end logic
+
+function playOrganizerAndBustDetector(player) {
+  let choiceMaker = {Player : playerChoice, Dealer : dealerChoice}[player];
+  let playerBustedStatus = false;
+  while (!playerBustedStatus) {
+    showHands();
+    let choice = choiceMaker();
+    if (choice === 'stay') {
+      commentary('stay', player);
+      return playerBustedStatus;
+    }
+    hitHand(player);
+    showHands();
+    prompt(commentary('hit', player));
+    playerBustedStatus = updateScoresAndDetectBust(player);
+  }
+  return playerBustedStatus;
+}
+
 function runGameAndAssessWinner() {
   if (playOrganizerAndBustDetector('Player')) {
     bustHandler('Player');
@@ -191,19 +214,6 @@ function runGameAndAssessWinner() {
     return 'Player';
   }
   return assessWinner();
-}
-
-function displayScores() {
-  let templateString = (player) => {
-    return `${player} :\n Game score : ${gameObj[player].gameScore}\n Match score : ${gameObj[player].matchScore}`;
-  };
-  console.log(templateString('Player'));
-  console.log(templateString('Dealer'));
-}
-
-function resetDeckAfterMatch() {
-  gameObj.deck = INITIAL_DECK;
-  gameObj.cardsInDeck = 52;
 }
 
 function runGames(matchStyle = false, gamesToWin = 1) {
@@ -236,17 +246,20 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
   }
 }
 
+// Main program
+
+
 let numberGames = 1;
 let incorrectInput = true;
 while (incorrectInput) {
-  let userPrefMatchStyle = prompt("Select game(g) OR match(m)?",
+  let userPrefMatchStyle = prompt("Select game(g) OR match(m)? ",
     true);
   if (userPrefMatchStyle === 'm' || userPrefMatchStyle === 'match') {
-    numberGames = Number(prompt("How many games to win a match?", true));
+    numberGames = Number(prompt("How many games to win a match? ", true));
     runMatches(true, numberGames);
     incorrectInput = false;
   } else if (userPrefMatchStyle === 'g' || userPrefMatchStyle === 'game') {
-    runMatches(true, 1);
+    runMatches(false, 0);
     incorrectInput = false;
   } else {
     prompt("Incorrect input, try again");
