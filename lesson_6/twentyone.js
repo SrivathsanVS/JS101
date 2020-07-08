@@ -7,7 +7,7 @@ let gameObj = {
   cardsInDeck: 52
 };
 const INITIAL_DECK = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48];
-const DECK = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 'Jack', 'Queen', 'King', 'Ace'];
+const DECK = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'Jack', 'Queen', 'King', 'Ace'];
 
 const MAX_SCORE = 21;
 const ACE_MAX_VAL = 11;
