@@ -1,18 +1,21 @@
 let readline = require('readline-sync');
 
-let gameObj = {
-  Player: { hand : [], score : 0, gameScore: 0, matchScore: 0},
-  Dealer: { hand : [], score : 0, gameScore: 0, matchScore: 0},
-  deck: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
-  cardsInDeck: 52
-};
-const INITIAL_DECK = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48];
-const DECK = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'Jack', 'Queen', 'King', 'Ace'];
-
+const MESSAGES = require('./twentyone.json');
+const NUMBER_CARDS = 52;
+const INITIAL_DECK = [...Array(NUMBER_CARDS).keys()];
+const DECK = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const SUITS = ['♠', '♥', '♦', '♣'];
 const MAX_SCORE = 21;
 const ACE_MAX_VAL = 11;
 const ACE_MIN_VAL = 1;
 const FACE_CARD_VAL = 10;
+
+let gameObj = {
+  Player: { hand : [], score : 0, gameScore: 0, matchScore: 0},
+  Dealer: { hand : [], score : 0, gameScore: 0, matchScore: 0},
+  deck: INITIAL_DECK.slice(),
+  cardsInDeck: NUMBER_CARDS
+};
 
 // Helper functions
 
@@ -28,26 +31,25 @@ function answerIsYes(input) {
 
 function updateDeck(index) {
   gameObj.cardsInDeck -= 1;
-  for (let tempInd = index + 1; tempInd < gameObj.deck.length; tempInd++) {
-    gameObj.deck[tempInd] -= 1;
-  }
+  return gameObj.deck.splice(index, 1);
 }
 
 function otherPlayer(player) {
   return (player === 'Player') ? 'Dealer' : 'Player';
 }
 
+function encodeSuit(cardNo) {
+  let cardNumber = DECK[Math.floor(cardNo / 4)];
+  let cardSuit = SUITS[cardNo % 4];
+  return cardNumber + cardSuit;
+}
+
 //  Back-end game logic
 
 function dealCard() {
-  let randomCardIndex = Math.floor(Math.random() * (gameObj.cardsInDeck - 1));
-  let ind;
-  for (ind in gameObj.deck) {
-    if (gameObj.deck[ind] > randomCardIndex) break;
-  }
-  ind -= 1;
-  updateDeck(ind);
-  return DECK[ind];
+  let randomCard = Math.floor(Math.random() * (gameObj.cardsInDeck - 1));
+  let card = updateDeck(randomCard);
+  return encodeSuit(card);
 }
 
 function initializeHands() {
@@ -72,7 +74,10 @@ function dealerChoice() {
 }
 
 function playerChoice() {
-  return prompt("Do you wish to stay or hit (enter 'stay' or 'hit') ? ", true);
+  let scoreIsMax = (gameObj.Player.score === MAX_SCORE);
+  if (!scoreIsMax) return prompt(MESSAGES.stayOrHit, true);
+  prompt(MESSAGES.maxScore); // Player has a maxScore
+  return 'stay';
 }
 
 function hitHand(player) {
@@ -82,12 +87,14 @@ function hitHand(player) {
 function scoreHand(cardArr) {
   let score = 0;
   let aceCount = 0;
+  let cardValExtract = (string) => string.slice(0, -1);
   for (let ind in cardArr) {
-    if (cardArr[ind] === 'Ace') {
+    let cardValue = cardValExtract(cardArr[ind]);
+    if (cardValue === 'A') {
       aceCount += 1;
       continue;
     }
-    score += Math.min(2 + DECK.indexOf(cardArr[ind]), FACE_CARD_VAL); // Lowest value in deck is 2, which has an index of 0
+    score += Math.min(2 + DECK.indexOf(cardValue), FACE_CARD_VAL); // Lowest value in deck is 2, which has an index of 0
   }
   if (!aceCount) return score;
   let maxAceVal = ACE_MAX_VAL + ((aceCount - 1) * ACE_MIN_VAL);
@@ -110,8 +117,8 @@ function assessWinner() {
 }
 
 function resetDeckAfterMatch() {
-  gameObj.deck = INITIAL_DECK;
-  gameObj.cardsInDeck = 52;
+  gameObj.deck = INITIAL_DECK.slice();
+  gameObj.cardsInDeck = NUMBER_CARDS;
 }
 
 // Functions that log game specifics to console
@@ -144,9 +151,9 @@ function showHands(fullDealerReveal = false, includeHeader = '') {
 }
 
 function declareWinnerUpdateMatchScores(winner, gamesToWin) {
-  showHands(true, "Final hands and result : ");
+  showHands(true, MESSAGES.finalScoreDisplay);
   if (winner === 'Tie') {
-    prompt("It's a tie!");
+    prompt(MESSAGES.declareTie);
     return false;
   }
   gameObj[winner].gameScore += 1;
@@ -164,12 +171,12 @@ function declareWinnerUpdateMatchScores(winner, gamesToWin) {
 function commentary(choice, player) {
   let choiceObj = {
     stay: {
-      Player : `You have chosen to stay. Your turn ends.`,
-      Dealer : `Dealer chooses to stay. End of play. Calculating scores to assess winner...`
+      Player : MESSAGES.playerStays,
+      Dealer : MESSAGES.dealerStays
     },
     hit: {
-      Player : `You have chosen to hit. Updated decks shown above`,
-      Dealer : `Dealer chose to hit. Updated decks shown above`
+      Player : MESSAGES.playerHits,
+      Dealer : MESSAGES.dealerHits
     }
   };
   return choiceObj[choice][player];
@@ -226,7 +233,7 @@ function runGames(matchStyle = false, gamesToWin = 1) {
       matchStyle * gamesToWin);
     displayScores(matchStyle);
     if (matchIsWon) return [true, true];
-    playAnotherGame = answerIsYes(prompt("Continue playing (y/n)? ",
+    playAnotherGame = answerIsYes(prompt(MESSAGES.requestAnotherGame,
       true));
   }
   return [false, false];
@@ -240,7 +247,7 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
     [matchIsWon, playAnotherGame] = runGames(matchStyle, gamesToWin);
     if (matchIsWon) {
       resetDeckAfterMatch();
-      playAnotherMatch = answerIsYes(prompt("Play again (y/n)? ",
+      playAnotherMatch = answerIsYes(prompt(MESSAGES.requestAnotherMatch,
         true));
     }
   }
@@ -252,15 +259,19 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
 let numberGames = 1;
 let incorrectInput = true;
 while (incorrectInput) {
-  let userPrefMatchStyle = prompt("Select game(g) OR match(m)? ",
+  console.clear();
+  console.log(MESSAGES.intro);
+  let userPrefMatchStyle = prompt(MESSAGES.selectGameorMatch,
     true);
   if (userPrefMatchStyle === 'm' || userPrefMatchStyle === 'match') {
-    numberGames = Number(prompt("How many games to win a match? ", true));
+    numberGames = Number(prompt(MESSAGES.numberGamesToWin, true));
     runMatches(true, numberGames);
-    incorrectInput = false;
+    incorrectInput = answerIsYes(prompt(MESSAGES.playAnotherMatch,
+      true));
   } else if (userPrefMatchStyle === 'g' || userPrefMatchStyle === 'game') {
     runMatches(false, 0);
-    incorrectInput = false;
+    incorrectInput = answerIsYes(prompt(MESSAGES.playAnotherMatch,
+      true));
   } else {
     prompt("Incorrect input, try again");
   }

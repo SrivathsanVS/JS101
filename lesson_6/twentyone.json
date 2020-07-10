@@ -1,0 +1,16 @@
+{
+  "intro": "Welcome to BlackJack!",
+  "selectGameorMatch": "Play game(g) OR match(m)? ",
+  "stayOrHit": "Do you wish to stay or hit (enter 'stay' or 'hit') ? ",
+  "maxScore": "Congrats, you have a max score! Dealer to play, hit enter to continue",
+  "finalScoreDisplay": "Final hands and result : ",
+  "playerStays": "You have chosen to stay. Your turn ends.",
+  "playerHits": "You have chosen to hit. Updated decks shown above. Hit enter to continue",
+  "dealerStays": "Dealer chooses to stay. End of play. Calculating scores to assess winner...",
+  "dealerHits": "Dealer chose to hit. Updated decks shown above. Hit enter to continue",
+  "declareTie": "It's a tie!",
+  "numberGamesToWin": "How many games to win a match? ",
+  "playAnotherMatch": "Enter 'y' to return to starting menu. Enter 'n' to exit. ",
+  "requestAnotherGame": "Continue playing (y/n)? ",
+  "requestAnotherMatch": "Play another match (y/n)? "
+}
