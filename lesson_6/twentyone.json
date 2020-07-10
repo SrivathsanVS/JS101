@@ -12,5 +12,6 @@
   "numberGamesToWin": "How many games to win a match? ",
   "playAnotherMatch": "Enter 'y' to return to starting menu. Enter 'n' to exit. ",
   "requestAnotherGame": "Continue playing (y/n)? ",
-  "requestAnotherMatch": "Play another match (y/n)? "
+  "requestAnotherMatch": "Play another match (y/n)? ",
+  "invalidChoice": "Invalid choice, try again."
 }

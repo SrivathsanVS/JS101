@@ -41,7 +41,7 @@ function otherPlayer(player) {
 function encodeSuit(cardNo) {
   let cardNumber = DECK[Math.floor(cardNo / 4)];
   let cardSuit = SUITS[cardNo % 4];
-  return cardNumber + cardSuit;
+  return {value: cardNumber, suit: cardSuit};
 }
 
 //  Back-end game logic
@@ -84,24 +84,30 @@ function hitHand(player) {
   gameObj[player].hand.push(dealCard());
 }
 
-function scoreHand(cardArr) {
-  let score = 0;
-  let aceCount = 0;
-  let cardValExtract = (string) => string.slice(0, -1);
-  for (let ind in cardArr) {
-    let cardValue = cardValExtract(cardArr[ind]);
-    if (cardValue === 'A') {
-      aceCount += 1;
-      continue;
+function acelessScoreAndAceCount(hand) {
+  return hand.reduce((scoreAndAceCount, elem) => {  // scoreAndAceCount is an array
+    if (elem.value !== 'A') {                       // with first element = score
+      scoreAndAceCount[0] += Math.min(2 + DECK.indexOf(elem.value), // and second element = aceCount
+        FACE_CARD_VAL);
+    } else {
+      scoreAndAceCount[1] += 1;
     }
-    score += Math.min(2 + DECK.indexOf(cardValue), FACE_CARD_VAL); // Lowest value in deck is 2, which has an index of 0
-  }
-  if (!aceCount) return score;
+    return scoreAndAceCount;
+  }, [0, 0]);
+}
+
+function addAcetoScore(aceCount, aceLessScore) {
+  if (!aceCount) return aceLessScore;
   let maxAceVal = ACE_MAX_VAL + ((aceCount - 1) * ACE_MIN_VAL);
   let minAceVal = aceCount * ACE_MIN_VAL;
-  score = (score + maxAceVal <= MAX_SCORE) ?
-    score + maxAceVal : score + minAceVal;
+  let score = (aceLessScore + maxAceVal <= MAX_SCORE) ?
+    aceLessScore + maxAceVal : aceLessScore + minAceVal;
   return score;
+}
+
+function scoreHand(cardArr) {
+  let [aceLessScore, aceCount] = acelessScoreAndAceCount(cardArr);
+  return addAcetoScore(aceCount, aceLessScore);
 }
 
 function updateScoresAndDetectBust(player) {
@@ -122,20 +128,23 @@ function resetDeckAfterMatch() {
 }
 
 // Functions that log game specifics to console
+function objToStrArray(cardArr) {
+  return cardArr.map(elem => elem.value + elem.suit);
+}
+
+function stringGrammar(arr) {
+  if (arr.length < 3) return arr.join(" and ");
+  return arr.slice(0, -1).join(", ") + ` and ${arr[arr.length - 1]}`;
+}
 
 function showHandStringGen(player, fullDealerReveal = false) {
-  function stringGrammar(arr) {
-    if (arr.length < 3) return arr.join(" and ");
-    return arr.slice(0, -1).join(", ") + ` and ${arr[arr.length - 1]}`;
-  }
   if (player === 'Dealer' && !fullDealerReveal) {
-    let arr = gameObj.Dealer.hand.slice();
-    // console.log(arr);
+    let arr = objToStrArray(gameObj.Dealer.hand.slice());
     if (arr.length >= 2) return stringGrammar([].concat(arr[0],
       arr.slice(2, arr.length),
       'unknown card'));
   }
-  return stringGrammar(gameObj[player].hand);
+  return stringGrammar(objToStrArray(gameObj[player].hand));
 }
 
 function bustHandler(bustedPlayer) {
@@ -150,12 +159,7 @@ function showHands(fullDealerReveal = false, includeHeader = '') {
   console.log(`You have: ${showHandStringGen('Player', fullDealerReveal)}`);
 }
 
-function declareWinnerUpdateMatchScores(winner, gamesToWin) {
-  showHands(true, MESSAGES.finalScoreDisplay);
-  if (winner === 'Tie') {
-    prompt(MESSAGES.declareTie);
-    return false;
-  }
+function updateMatchScoresandDetectWin(winner, gamesToWin) {
   gameObj[winner].gameScore += 1;
   if (gameObj[winner].gameScore === gamesToWin) {
     prompt(`${winner} wins the game and match!`);
@@ -164,6 +168,16 @@ function declareWinnerUpdateMatchScores(winner, gamesToWin) {
     gameObj[otherPlayer(winner)].gameScore = 0;
     return true;
   }
+  return false;
+}
+
+function declareWinnerUpdateMatchScores(winner, gamesToWin) {
+  showHands(true, MESSAGES.finalScoreDisplay);
+  if (winner === 'Tie') {
+    prompt(MESSAGES.declareTie);
+    return false;
+  }
+  if (updateMatchScoresandDetectWin(winner, gamesToWin)) return true;
   prompt(`${winner} wins the game!`);
   return false;
 }
@@ -193,22 +207,31 @@ function displayScores(matchStyle) {
 
 // Front-end logic
 
+function singleTurnPlay(player, playerChoiceFunction) { // Returns [player bust, player stays]
+  let choice = playerChoiceFunction();
+  while (['stay', 'hit'].indexOf(choice) === -1) {
+    console.log(MESSAGES.invalidChoice);
+    choice = playerChoiceFunction();
+  }
+  if (choice === 'stay') {
+    commentary('stay', player);
+    return [false, true];
+  }
+  hitHand(player);
+  showHands();
+  prompt(commentary('hit', player));
+  return [updateScoresAndDetectBust(player), false];
+}
+
 function playOrganizerAndBustDetector(player) {
   let choiceMaker = {Player : playerChoice, Dealer : dealerChoice}[player];
-  let playerBustedStatus = false;
-  while (!playerBustedStatus) {
+  let bustedStatus = false;
+  let playerStays = false;
+  while (!(bustedStatus || playerStays)) {
     showHands();
-    let choice = choiceMaker();
-    if (choice === 'stay') {
-      commentary('stay', player);
-      return playerBustedStatus;
-    }
-    hitHand(player);
-    showHands();
-    prompt(commentary('hit', player));
-    playerBustedStatus = updateScoresAndDetectBust(player);
+    [bustedStatus, playerStays] = singleTurnPlay(player, choiceMaker);
   }
-  return playerBustedStatus;
+  return (bustedStatus === true);
 }
 
 function runGameAndAssessWinner() {
@@ -254,7 +277,6 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
 }
 
 // Main program
-
 
 let numberGames = 1;
 let incorrectInput = true;
