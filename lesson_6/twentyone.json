@@ -2,7 +2,8 @@
   "intro": "Welcome to BlackJack!",
   "selectGameorMatch": "Play game(g) OR match(m)? ",
   "stayOrHit": "Do you wish to stay or hit (enter 's /stay' or 'h / hit') ? ",
-  "maxScore": "Congrats, you have a max score! Dealer to play, hit enter to continue",
+  "playerMaxScore": "Congrats, you have a max score! Dealer to play, hit enter to continue",
+  "dealerMaxScore": "Dealer got a max score! Hit enter to continue",
   "finalScoreDisplay": "Final hands and result : ",
   "playerStays": "You have chosen to stay. Your turn ends.",
   "playerHits": "You have chosen to hit. Updated decks shown above. Hit enter to continue",
@@ -13,5 +14,7 @@
   "playAnotherMatch": "Game stopped per user request. \nEnter 'y' to return to starting menu. \nEnter 'n' to exit. ",
   "requestAnotherGame": "Continue playing (y/n)? ",
   "requestAnotherMatch": "Play another match (y/n)? ",
-  "invalidChoice": "Invalid choice, try again."
+  "invalidChoice": "Invalid choice, try again.",
+  "playerBust": "You have gone bust!",
+  "dealerBust": "Dealer has gone bust!"
 }

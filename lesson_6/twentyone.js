@@ -29,7 +29,6 @@ function validateUserInput(expectedInputList,
     messagePromptFunction());
   let input = collectUserInput();
   while (expectedInputList.indexOf(input) === -1) {
-    console.log(input);
     console.log(MESSAGES.invalidChoice);
     input = collectUserInput();
   }
@@ -158,6 +157,10 @@ function updateGameScore(gameWinner) {
   if (gameWinner !== 'Tie') gameObj[gameWinner].gameScore += 1;
 }
 
+function detectMaxScore(player) {
+  return (gameObj[player].score === MAX_SCORE);
+}
+
 function detectMatchWin(gameWinner, gamesToWin) {
   if (gameWinner === 'Tie') return false;
   return (gameObj[gameWinner].gameScore === gamesToWin);
@@ -207,22 +210,12 @@ function displayGameResult(gameWinner, matchIsWon, matchStyle = false) {
   }
 }
 
-function notifyBust(bustedPlayer) {
-  prompt(`${bustedPlayer} has gone bust!`);
-}
-
 function commentary(choice, player) {
-  let choiceObj = {
-    stay: {
-      Player : MESSAGES.playerStays,
-      Dealer : MESSAGES.dealerStays
-    },
-    hit: {
-      Player : MESSAGES.playerHits,
-      Dealer : MESSAGES.dealerHits
-    }
-  };
-  return choiceObj[choice][player];
+  player = player.toLowerCase();
+  if (choice === 'stay') return MESSAGES[player + 'Stays'];
+  if (choice === 'bust') return MESSAGES[player + 'Bust'];
+  if (choice === 'hit') return MESSAGES[player + 'Hits'];
+  return MESSAGES[player + 'MaxScore'];
 }
 
 function displayScores(matchStyle) {
@@ -237,10 +230,7 @@ function displayScores(matchStyle) {
 // Game-play functions
 
 function playerChoice() {
-  let scoreIsMax = (gameObj.Player.score === MAX_SCORE);
-  if (!scoreIsMax) return prompt(MESSAGES.stayOrHit, true).toLowerCase();
-  prompt(MESSAGES.maxScore); // Player has a maxScore, deny choice
-  return 'stay';
+  return prompt(MESSAGES.stayOrHit, true).toLowerCase();
 }
 
 function dealerChoice() {
@@ -254,7 +244,6 @@ function singleTurnPlay(player, playerChoiceFunction) { // Returns if player cho
   let choice = validateUserInput(['stay', 'hit', 's', 'h'],
     playerChoiceFunction, '');
   if (choice === 'stay' || choice === 's') {
-    commentary('stay', player);
     return true;
   }
   hitHand(player);
@@ -263,29 +252,32 @@ function singleTurnPlay(player, playerChoiceFunction) { // Returns if player cho
   return false;
 }
 
-function playOrganizerAndBustDetector(player) {
+
+function playOrganizer(player) {
   // Executes a player's turn until the player stays or goes bust.
-  // Returns whether the player is bust.
+  // Returns reason for end of player play ('stay', 'bust', or 'max score')
   let choiceMaker = {Player : playerChoice, Dealer : dealerChoice}[player];
-  let bustedStatus = false;
   let playerStays = false;
-  while (!(bustedStatus || playerStays)) {
+  if (detectMaxScore(player)) return 'max score'; // If player has 21 to begin with
+  while (!playerStays) {
     showHands();
     playerStays = singleTurnPlay(player, choiceMaker);
     updatePlayerScore(player);
-    bustedStatus = detectBust(player);
+    if (detectBust(player)) return 'bust';
+    if (detectMaxScore(player)) return 'max score';
   }
-  return (bustedStatus === true);
+  return 'stay';
 }
 
 function runGameAndAssessWinner() {
-  if (playOrganizerAndBustDetector('Player')) {
-    notifyBust('Player');
-    return 'Dealer';
-  }
-  if (playOrganizerAndBustDetector('Dealer')) {
-    notifyBust('Dealer');
-    return 'Player';
+  let playerOrder = ['Player', 'Dealer'];
+  let playResult;
+  let player;
+  for (let index in playerOrder) {
+    player = playerOrder[index];
+    playResult = playOrganizer(player);
+    prompt(commentary(playResult, player));
+    if (playResult === 'bust') return otherPlayer(player);
   }
   return assessWinner();
 }
