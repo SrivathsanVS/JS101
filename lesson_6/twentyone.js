@@ -1,8 +1,6 @@
 let readline = require('readline-sync');
 
 const MESSAGES = require('./twentyone.json');
-const NUMBER_CARDS = 52;
-const INITIAL_DECK = [...Array(NUMBER_CARDS).keys()];
 const DECK = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const SUITS = ['♠', '♥', '♦', '♣'];
 const MAX_SCORE = 21;
@@ -12,9 +10,7 @@ const FACE_CARD_VAL = 10;
 
 let gameObj = {
   Player: { hand : [], score : 0, gameScore: 0, matchScore: 0},
-  Dealer: { hand : [], score : 0, gameScore: 0, matchScore: 0},
-  deck: INITIAL_DECK.slice(),
-  cardsInDeck: NUMBER_CARDS
+  Dealer: { hand : [], score : 0, gameScore: 0, matchScore: 0}
 };
 
 // Helper functions
@@ -25,31 +21,62 @@ function prompt(question = '', input = false) {
   return undefined;
 }
 
-function answerIsYes(input) {
-  return (input === 'y' || input.toLowerCase() === 'yes');
+function validateUserInput(expectedInputList,
+  messagePromptFunction = false,
+  promptMessage = '') {
+  let collectUserInput = () => ((promptMessage) ?
+    prompt(promptMessage, true).toLowerCase() :
+    messagePromptFunction());
+  let input = collectUserInput();
+  while (expectedInputList.indexOf(input) === -1) {
+    console.log(input);
+    console.log(MESSAGES.invalidChoice);
+    input = collectUserInput();
+  }
+  return input;
 }
 
-function updateDeck(index) {
-  gameObj.cardsInDeck -= 1;
-  return gameObj.deck.splice(index, 1);
+function answerIsYes(promptMessage) {
+  let validatedInput = validateUserInput(['y', 'yes', 'n','no'],
+    false, promptMessage);
+  return (validatedInput === 'y' || validatedInput === 'yes');
 }
 
 function otherPlayer(player) {
   return (player === 'Player') ? 'Dealer' : 'Player';
 }
 
-function encodeSuit(cardNo) {
-  let cardNumber = DECK[Math.floor(cardNo / 4)];
-  let cardSuit = SUITS[cardNo % 4];
-  return {value: cardNumber, suit: cardSuit};
+//  Deck and card management
+
+function createDeck() {
+  let newDeck = [];
+  for (let cardInd in DECK) {
+    for (let suitInd in SUITS) {
+      let newCard = {value: DECK[cardInd],
+        suit: SUITS[suitInd]};
+      newDeck.push(newCard);
+    }
+  }
+  return newDeck;
 }
 
-//  Back-end game logic
+function shuffleDeck(deck) {
+  let array = deck.slice();
+  for (let arrInd = (array.length - 1); arrInd > 0; arrInd--) {
+    const altIndex = Math.floor(Math.random() * arrInd);
+    const temp = array[arrInd];
+    array[arrInd] = array[altIndex];
+    array[altIndex] = temp;
+  }
+  return array;
+}
+
+function initializeDeck() {
+  gameObj.deck = shuffleDeck(createDeck());
+}
 
 function dealCard() {
-  let randomCard = Math.floor(Math.random() * (gameObj.cardsInDeck - 1));
-  let card = updateDeck(randomCard);
-  return encodeSuit(card);
+  return gameObj.deck.pop();
 }
 
 function initializeHands() {
@@ -62,26 +89,38 @@ function initializeHands() {
     }
     (gameObj.Player.hand).push(dealCard());
   }
-  updateScoresAndDetectBust('Player');
-  updateScoresAndDetectBust('Dealer');
-}
-
-function dealerChoice() {
-  let diff = gameObj.Player.score - gameObj.Dealer.score;
-  if (diff < 0) return 'stay';
-  if (diff === 0 && (MAX_SCORE - gameObj.Dealer.score < 7)) return 'stay';
-  return 'hit';
-}
-
-function playerChoice() {
-  let scoreIsMax = (gameObj.Player.score === MAX_SCORE);
-  if (!scoreIsMax) return prompt(MESSAGES.stayOrHit, true);
-  prompt(MESSAGES.maxScore); // Player has a maxScore
-  return 'stay';
 }
 
 function hitHand(player) {
   gameObj[player].hand.push(dealCard());
+}
+
+function objToStrArray(cardObj) {
+  return cardObj.map(elem => elem.value + elem.suit);
+}
+
+function cardObjtoArray(hand, maskOneCard) {
+  if (maskOneCard) {
+    let arr = hand.slice();
+    arr.splice(1, 1); // Delete second item
+    return [].concat(objToStrArray(arr), 'unknown card');
+  }
+  return objToStrArray(hand);
+}
+
+// Scoring functions
+
+function updatePlayerScore(player) {
+  gameObj[player].score = scoreHand(gameObj[player].hand);
+}
+
+function initializeScores() {
+  updatePlayerScore('Player');
+  updatePlayerScore('Dealer');
+}
+
+function detectBust(player) {
+  return (gameObj[player].score > MAX_SCORE);
 }
 
 function acelessScoreAndAceCount(hand) {
@@ -100,20 +139,13 @@ function addAcetoScore(aceCount, aceLessScore) {
   if (!aceCount) return aceLessScore;
   let maxAceVal = ACE_MAX_VAL + ((aceCount - 1) * ACE_MIN_VAL);
   let minAceVal = aceCount * ACE_MIN_VAL;
-  let score = (aceLessScore + maxAceVal <= MAX_SCORE) ?
+  return (aceLessScore + maxAceVal <= MAX_SCORE) ?
     aceLessScore + maxAceVal : aceLessScore + minAceVal;
-  return score;
 }
 
 function scoreHand(cardArr) {
   let [aceLessScore, aceCount] = acelessScoreAndAceCount(cardArr);
   return addAcetoScore(aceCount, aceLessScore);
-}
-
-function updateScoresAndDetectBust(player) {
-  gameObj[player].score = scoreHand(gameObj[player].hand);
-  if (gameObj[player].score > MAX_SCORE) return true;
-  return false;
 }
 
 function assessWinner() {
@@ -122,64 +154,61 @@ function assessWinner() {
   return 'Dealer';
 }
 
-function resetDeckAfterMatch() {
-  gameObj.deck = INITIAL_DECK.slice();
-  gameObj.cardsInDeck = NUMBER_CARDS;
+function updateGameScore(gameWinner) {
+  if (gameWinner !== 'Tie') gameObj[gameWinner].gameScore += 1;
 }
 
-// Functions that log game specifics to console
-function objToStrArray(cardArr) {
-  return cardArr.map(elem => elem.value + elem.suit);
+function detectMatchWin(gameWinner, gamesToWin) {
+  if (gameWinner === 'Tie') return false;
+  return (gameObj[gameWinner].gameScore === gamesToWin);
 }
 
-function stringGrammar(arr) {
-  if (arr.length < 3) return arr.join(" and ");
-  return arr.slice(0, -1).join(", ") + ` and ${arr[arr.length - 1]}`;
+function updateMatchScores(matchWinner) {
+  gameObj[matchWinner].matchScore += 1;
+  gameObj[matchWinner].gameScore = 0;
+  gameObj[otherPlayer(matchWinner)].gameScore = 0;
 }
 
-function showHandStringGen(player, fullDealerReveal = false) {
-  if (player === 'Dealer' && !fullDealerReveal) {
-    let arr = objToStrArray(gameObj.Dealer.hand.slice());
-    if (arr.length >= 2) return stringGrammar([].concat(arr[0],
-      arr.slice(2, arr.length),
-      'unknown card'));
-  }
-  return stringGrammar(objToStrArray(gameObj[player].hand));
-}
-
-function bustHandler(bustedPlayer) {
-  prompt(`${bustedPlayer} has gone bust!`);
+function resetMatchScores() {
+  gameObj['Player'].gameScore = 0;
+  gameObj['Player'].matchScore = 0;
+  gameObj['Dealer'].gameScore = 0;
+  gameObj['Dealer'].matchScore = 0;
 }
 
 
-function showHands(fullDealerReveal = false, includeHeader = '') {
+// Display Functions
+
+function displayArrayItems(array, minLengthToUseCommas = 3) {
+  if (array.length < minLengthToUseCommas) return array.join(" and ");
+  return array.slice(0, -1).join(", ") + ` and ${array[array.length - 1]}`;
+}
+
+function displayPlayerHand(player, maskOneCard) {
+  let handArr = cardObjtoArray(gameObj[player].hand, maskOneCard);
+  return displayArrayItems(handArr);
+}
+
+function showHands(dealerMaskOneCard = true, includeHeader = '') {
   console.clear();
   if (includeHeader) console.log(includeHeader);
-  console.log(`Dealer has: ${showHandStringGen('Dealer', fullDealerReveal)}`);
-  console.log(`You have: ${showHandStringGen('Player', fullDealerReveal)}`);
+  console.log(`Dealer has: ${displayPlayerHand('Dealer', dealerMaskOneCard)}`);
+  console.log(`You have: ${displayPlayerHand('Player', false)}`);
 }
 
-function updateMatchScoresandDetectWin(winner, gamesToWin) {
-  gameObj[winner].gameScore += 1;
-  if (gameObj[winner].gameScore === gamesToWin) {
-    prompt(`${winner} wins the game and match!`);
-    gameObj[winner].matchScore += 1;
-    gameObj[winner].gameScore = 0;
-    gameObj[otherPlayer(winner)].gameScore = 0;
-    return true;
-  }
-  return false;
-}
-
-function declareWinnerUpdateMatchScores(winner, gamesToWin) {
-  showHands(true, MESSAGES.finalScoreDisplay);
-  if (winner === 'Tie') {
+function displayGameResult(gameWinner, matchIsWon, matchStyle = false) {
+  showHands(false, MESSAGES.finalScoreDisplay);
+  if (gameWinner === 'Tie') {
     prompt(MESSAGES.declareTie);
-    return false;
+  } else if (matchIsWon && matchStyle) {
+    prompt(`${gameWinner} wins the game and match!`);
+  } else {
+    prompt(`${gameWinner} wins the game!`);
   }
-  if (updateMatchScoresandDetectWin(winner, gamesToWin)) return true;
-  prompt(`${winner} wins the game!`);
-  return false;
+}
+
+function notifyBust(bustedPlayer) {
+  prompt(`${bustedPlayer} has gone bust!`);
 }
 
 function commentary(choice, player) {
@@ -205,59 +234,84 @@ function displayScores(matchStyle) {
   console.log(templateString('Dealer', matchStyle));
 }
 
-// Front-end logic
+// Game-play functions
 
-function singleTurnPlay(player, playerChoiceFunction) { // Returns [player bust, player stays]
-  let choice = playerChoiceFunction();
-  while (['stay', 'hit'].indexOf(choice) === -1) {
-    console.log(MESSAGES.invalidChoice);
-    choice = playerChoiceFunction();
-  }
-  if (choice === 'stay') {
+function playerChoice() {
+  let scoreIsMax = (gameObj.Player.score === MAX_SCORE);
+  if (!scoreIsMax) return prompt(MESSAGES.stayOrHit, true).toLowerCase();
+  prompt(MESSAGES.maxScore); // Player has a maxScore, deny choice
+  return 'stay';
+}
+
+function dealerChoice() {
+  let diff = gameObj.Player.score - gameObj.Dealer.score;
+  if (diff < 0) return 'stay';
+  if (diff === 0 && (MAX_SCORE - gameObj.Dealer.score < 7)) return 'stay';
+  return 'hit';
+}
+
+function singleTurnPlay(player, playerChoiceFunction) { // Returns if player chooses to stay or not
+  let choice = validateUserInput(['stay', 'hit', 's', 'h'],
+    playerChoiceFunction, '');
+  if (choice === 'stay' || choice === 's') {
     commentary('stay', player);
-    return [false, true];
+    return true;
   }
   hitHand(player);
   showHands();
   prompt(commentary('hit', player));
-  return [updateScoresAndDetectBust(player), false];
+  return false;
 }
 
 function playOrganizerAndBustDetector(player) {
+  // Executes a player's turn until the player stays or goes bust.
+  // Returns whether the player is bust.
   let choiceMaker = {Player : playerChoice, Dealer : dealerChoice}[player];
   let bustedStatus = false;
   let playerStays = false;
   while (!(bustedStatus || playerStays)) {
     showHands();
-    [bustedStatus, playerStays] = singleTurnPlay(player, choiceMaker);
+    playerStays = singleTurnPlay(player, choiceMaker);
+    updatePlayerScore(player);
+    bustedStatus = detectBust(player);
   }
   return (bustedStatus === true);
 }
 
 function runGameAndAssessWinner() {
   if (playOrganizerAndBustDetector('Player')) {
-    bustHandler('Player');
+    notifyBust('Player');
     return 'Dealer';
   }
   if (playOrganizerAndBustDetector('Dealer')) {
-    bustHandler('Dealer');
+    notifyBust('Dealer');
     return 'Player';
   }
   return assessWinner();
 }
 
-function runGames(matchStyle = false, gamesToWin = 1) {
+function initializeGame() {
+  initializeDeck();
+  initializeHands();
+  initializeScores();
+}
+
+function runGames(matchStyle = false, gamesToWin = 1) { // Returns [matchIsWon, playAnotherGame]
   let playAnotherGame = true;
-  let matchIsWon;
   while (playAnotherGame) {
-    initializeHands();
+    initializeGame();
     showHands();
-    matchIsWon = declareWinnerUpdateMatchScores(runGameAndAssessWinner(),
-      matchStyle * gamesToWin);
+    let gameWinner = runGameAndAssessWinner();
+    updateGameScore(gameWinner);
+    if (matchStyle && detectMatchWin(gameWinner, gamesToWin)) {
+      updateMatchScores(gameWinner);
+      displayGameResult(gameWinner, true, matchStyle);
+      displayScores(matchStyle);
+      return [true, true];
+    }
+    displayGameResult(gameWinner);
     displayScores(matchStyle);
-    if (matchIsWon) return [true, true];
-    playAnotherGame = answerIsYes(prompt(MESSAGES.requestAnotherGame,
-      true));
+    playAnotherGame = answerIsYes(MESSAGES.requestAnotherGame);
   }
   return [false, false];
 }
@@ -266,12 +320,12 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
   let playAnotherMatch = true;
   let matchIsWon = false;
   let playAnotherGame = true;
+  resetMatchScores();
   while (playAnotherMatch && playAnotherGame) {
     [matchIsWon, playAnotherGame] = runGames(matchStyle, gamesToWin);
     if (matchIsWon) {
-      resetDeckAfterMatch();
-      playAnotherMatch = answerIsYes(prompt(MESSAGES.requestAnotherMatch,
-        true));
+      resetMatchScores();
+      playAnotherMatch = answerIsYes(MESSAGES.requestAnotherMatch);
     }
   }
 }
@@ -279,21 +333,19 @@ function runMatches(matchStyle = false, gamesToWin = 1) {
 // Main program
 
 let numberGames = 1;
-let incorrectInput = true;
-while (incorrectInput) {
+let continuePlay = true;
+while (continuePlay) {
   console.clear();
   console.log(MESSAGES.intro);
   let userPrefMatchStyle = prompt(MESSAGES.selectGameorMatch,
-    true);
+    true).toLowerCase();
   if (userPrefMatchStyle === 'm' || userPrefMatchStyle === 'match') {
     numberGames = Number(prompt(MESSAGES.numberGamesToWin, true));
     runMatches(true, numberGames);
-    incorrectInput = answerIsYes(prompt(MESSAGES.playAnotherMatch,
-      true));
+    continuePlay = answerIsYes(MESSAGES.playAnotherMatch);
   } else if (userPrefMatchStyle === 'g' || userPrefMatchStyle === 'game') {
     runMatches(false, 0);
-    incorrectInput = answerIsYes(prompt(MESSAGES.playAnotherMatch,
-      true));
+    continuePlay = answerIsYes(MESSAGES.playAnotherMatch);
   } else {
     prompt("Incorrect input, try again");
   }
